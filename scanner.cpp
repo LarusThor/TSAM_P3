@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
             return 1;
         }
      
-        char buffer[1024];
+        char buffer[2048];
         sockaddr_in from_addr{};
         socklen_t from_len = sizeof(from_addr);
         int received = recvfrom(sock, buffer, sizeof(buffer) - 1, 0,
