@@ -10,6 +10,35 @@
 
 using namespace std;
 
+
+void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port2) {
+    //TODO: Figure out how to send correctly and receive messages
+    server_addr.sin_port = htons(port2);
+    int sent = sendto(sock, signature_buffer, sizeof(signature_buffer), 0,
+        (sockaddr *)&server_addr, sizeof(server_addr));
+    if (sent < 0) {
+        perror("sendto failed");
+        close(sock);
+        return;
+    }
+    int rec_buffer[1024];
+    sockaddr_in from_addr{};
+    socklen_t from_len = sizeof(from_addr);
+    int received = recvfrom(sock, rec_buffer, sizeof(rec_buffer), 0,
+        (sockaddr *)&from_addr, &from_len);
+    std::cout << "Received amount for first evil reply: " << received << std::endl;
+    if (received < 0) {
+        std::cout << "received failed" << std::endl;
+    }
+
+    std::cout << "Received buffer: " << std::endl;
+    for (int i = 0; i < sizeof(rec_buffer); i++) {
+        printf("%02X ", (unsigned char)rec_buffer[i]);
+    }
+
+}
+
+
 int main(int argc, char *argv[]) {
     if (argc != 6) {
         perror("Incorrect amount of arguments");
@@ -61,14 +90,12 @@ int main(int argc, char *argv[]) {
 
     timeval tv{};
     tv.tv_sec = 0;
-    tv.tv_usec = 100000; // 100 ms
+    tv.tv_usec = 100000;
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
     char rec_buffer[5];
     sockaddr_in from_addr{};
     socklen_t from_len = sizeof(from_addr);
-    // removed -1 from sizeof(rec_buffer) - 1  for testing
-    // TODO: Check if -1 makes sense or not
     int received = recvfrom(sock, rec_buffer, sizeof(rec_buffer), 0,
         (sockaddr *)&from_addr, &from_len);
     std::cout << "Received amount for first reply: " << received << std::endl;
@@ -80,8 +107,6 @@ int main(int argc, char *argv[]) {
         int numb = rec_buffer[i];
         std::cout << numb << endl;
     }
-
-    //TODO: Change network ordered bytes to small endian and then XOR
    
     std::cout << '\n';
     int receivedNumber;
@@ -134,6 +159,8 @@ int main(int argc, char *argv[]) {
 
     std::cout << "Second reply buffer: " << second_reply_buffer << std::endl;
     std::cout << std::endl;
+
+    evilBit(signature_buffer, sock, server_addr, port2);
 
     return 0;
 
