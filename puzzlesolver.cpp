@@ -67,32 +67,54 @@ int main(int argc, char *argv[]) {
     char rec_buffer[5];
     sockaddr_in from_addr{};
     socklen_t from_len = sizeof(from_addr);
-    int received = recvfrom(sock, rec_buffer, sizeof(rec_buffer) - 1, 0,
+    // removed -1 from sizeof(rec_buffer) - 1  for testing
+    // TODO: Check if -1 makes sense or not
+    int received = recvfrom(sock, rec_buffer, sizeof(rec_buffer), 0,
         (sockaddr *)&from_addr, &from_len);
-    
+    std::cout << "Received amount for first reply: " << received << std::endl;
     if (received < 0) {
         std::cout << "received failed" << std::endl;
     }
 
     for (int i = 0; i < sizeof(int) + sizeof(char); i++) {
         int numb = rec_buffer[i];
-        std::cout << numb;
+        std::cout << numb << endl;
     }
+
+    //TODO: Change network ordered bytes to small endian and then XOR
+   
     std::cout << '\n';
     int receivedNumber;
     int groupID = rec_buffer[0];
     
     memcpy(&receivedNumber, rec_buffer + 1, sizeof(receivedNumber));
+    receivedNumber = ntohl(receivedNumber); 
     receivedNumber = receivedNumber ^ secretNumber;
+    receivedNumber = htonl(receivedNumber);
     std::cout << "Group Id: " << groupID << std::endl;
     std::cout << "Challenger number: " << receivedNumber << std::endl;
     std::cout << '\n';
 
     char signature_buffer[5];
     signature_buffer[0] = groupID;
-    memcpy(signature_buffer + 1, &receivedNumber, sizeof(receivedNumber));
+    std::cout << "Group ID: " << groupID << std::endl;
+    std::cout << "Signature buffer: " << std::endl;
 
-    int sent2 = sendto(sock, signature_buffer, totalLen, 0,
+    
+    memcpy(signature_buffer + 1, &receivedNumber, sizeof(receivedNumber));
+    for (size_t i = 0; i < 5; i++)
+    {
+        std::cout << (int)signature_buffer[i];
+    }
+    std::cout << std::endl;
+
+    for (int i = 0; i < 5; i++) {
+        printf("Last signature buffer: %02X \n", (unsigned char)signature_buffer[i]);
+    }
+
+    cout << "total lenght when sending 2nd time: " << totalLen << endl;
+
+    int sent2 = sendto(sock, signature_buffer, sizeof(signature_buffer), 0,
         (sockaddr *)&server_addr, sizeof(server_addr));
     if (sent2 < 0) {
         perror("signatureBuffer failed");
@@ -101,27 +123,17 @@ int main(int argc, char *argv[]) {
     }
 
     //Second reply
-    char second_reply_buffer[5];
+    char second_reply_buffer[69];
  
-    int received2 = recvfrom(sock, second_reply_buffer, sizeof(second_reply_buffer) - 1, 0,
+    int received2 = recvfrom(sock, second_reply_buffer, sizeof(second_reply_buffer), 0,
         (sockaddr *)&from_addr, &from_len);
-    
+    std::cout << "Received amount: " << received2 << std::endl;
     if (received2 < 0) {
         std::cout << "received failed" << std::endl;
     }
 
-     for (int i = 0; i < sizeof(short); i++) {
-        int numb = second_reply_buffer[i];
-        std::cout << numb;
-    }
+    std::cout << "Second reply buffer: " << second_reply_buffer << std::endl;
     std::cout << std::endl;
-    
-    //std::cout <<  rec_buffer << std::endl;
-                
-            
-    
-
-    
 
     return 0;
 
