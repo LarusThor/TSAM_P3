@@ -10,6 +10,40 @@
 
 using namespace std;
 
+
+void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port2) {
+
+    // TODO: Figure out how to send correctly and receive messages
+    // Add a IPv4 and UDP header and store the signature_buffer in the data section of the UDP header
+    // IPv4 (20 bytes)
+    // UDP (8 bytes)
+    // Data (4 bytes)
+    server_addr.sin_port = htons(port2);
+    int sent = sendto(sock, signature_buffer, sizeof(signature_buffer), 0,
+        (sockaddr *)&server_addr, sizeof(server_addr));
+    if (sent < 0) {
+        perror("sendto failed");
+        close(sock);
+        return;
+    }
+    int rec_buffer[1024];
+    sockaddr_in from_addr{};
+    socklen_t from_len = sizeof(from_addr);
+    int received = recvfrom(sock, rec_buffer, sizeof(rec_buffer), 0,
+        (sockaddr *)&from_addr, &from_len);
+    std::cout << "Received amount for first evil reply: " << received << std::endl;
+    if (received < 0) {
+        std::cout << "received failed" << std::endl;
+    }
+
+    std::cout << "Received buffer: " << std::endl;
+    for (int i = 0; i < sizeof(rec_buffer); i++) {
+        printf("%02X ", (unsigned char)rec_buffer[i]);
+    }
+
+}
+
+
 int main(int argc, char *argv[]) {
     if (argc != 6) {
         perror("Incorrect amount of arguments");
@@ -61,40 +95,56 @@ int main(int argc, char *argv[]) {
 
     timeval tv{};
     tv.tv_sec = 0;
-    tv.tv_usec = 100000; // 100 ms
+    tv.tv_usec = 100000;
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
     char rec_buffer[5];
     sockaddr_in from_addr{};
     socklen_t from_len = sizeof(from_addr);
-    int received = recvfrom(sock, rec_buffer, sizeof(rec_buffer) - 1, 0,
+    int received = recvfrom(sock, rec_buffer, sizeof(rec_buffer), 0,
         (sockaddr *)&from_addr, &from_len);
-    
+    std::cout << "Received amount for first reply: " << received << std::endl;
     if (received < 0) {
         std::cout << "received failed" << std::endl;
     }
 
     for (int i = 0; i < sizeof(int) + sizeof(char); i++) {
         int numb = rec_buffer[i];
-        std::cout << numb;
+        std::cout << numb << endl;
     }
-
-    std::cout << rec_buffer << endl;
+   
     std::cout << '\n';
     int receivedNumber;
     int groupID = rec_buffer[0];
     
     memcpy(&receivedNumber, rec_buffer + 1, sizeof(receivedNumber));
+    receivedNumber = ntohl(receivedNumber); 
     receivedNumber = receivedNumber ^ secretNumber;
+    receivedNumber = htonl(receivedNumber);
     std::cout << "Group Id: " << groupID << std::endl;
     std::cout << "Challenger number: " << receivedNumber << std::endl;
     std::cout << '\n';
 
     char signature_buffer[5];
     signature_buffer[0] = groupID;
-    memcpy(signature_buffer + 1, &receivedNumber, sizeof(receivedNumber));
+    std::cout << "Group ID: " << groupID << std::endl;
+    std::cout << "Signature buffer: " << std::endl;
 
-    int sent2 = sendto(sock, signature_buffer, totalLen, 0,
+    
+    memcpy(signature_buffer + 1, &receivedNumber, sizeof(receivedNumber));
+    for (size_t i = 0; i < 5; i++)
+    {
+        std::cout << (int)signature_buffer[i];
+    }
+    std::cout << std::endl;
+
+    for (int i = 0; i < 5; i++) {
+        printf("Last signature buffer: %02X \n", (unsigned char)signature_buffer[i]);
+    }
+
+    cout << "total lenght when sending 2nd time: " << totalLen << endl;
+
+    int sent2 = sendto(sock, signature_buffer, sizeof(signature_buffer), 0,
         (sockaddr *)&server_addr, sizeof(server_addr));
     if (sent2 < 0) {
         perror("signatureBuffer failed");
@@ -103,28 +153,19 @@ int main(int argc, char *argv[]) {
     }
 
     //Second reply
-    char second_reply_buffer[1024];
+    char second_reply_buffer[69];
  
-    int received2 = recvfrom(sock, second_reply_buffer, sizeof(second_reply_buffer) - 1, 0,
+    int received2 = recvfrom(sock, second_reply_buffer, sizeof(second_reply_buffer), 0,
         (sockaddr *)&from_addr, &from_len);
-    
+    std::cout << "Received amount: " << received2 << std::endl;
     if (received2 < 0) {
         std::cout << "received failed" << std::endl;
     }
 
-     for (int i = 0; i < sizeof(short); i++) {
-        int numb = second_reply_buffer[i];
-        std::cout << numb;
-    }
+    std::cout << "Second reply buffer: " << second_reply_buffer << std::endl;
     std::cout << std::endl;
-    std::cout << second_reply_buffer << endl;
-    
-    //std::cout <<  rec_buffer << std::endl;
-                
-            
-    
 
-    
+    evilBit(signature_buffer, sock, server_addr, port2);
 
     return 0;
 

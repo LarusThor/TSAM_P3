@@ -1,4 +1,3 @@
-//Comment
 #include <sys/socket.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,7 +34,6 @@ int main(int argc, char *argv[]) {
         close(sock);
         return 1;
     }
-
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
     
@@ -47,31 +45,32 @@ int main(int argc, char *argv[]) {
 
     for (int i = low_port; i <= high_port; i++) {
         
-        for (int j=0; j<3; j++) {
         server_addr.sin_port = htons(i);
         int sent = sendto(sock, message, strlen(message), 0,
-        (sockaddr *)&server_addr, sizeof(server_addr));
+                      (sockaddr *)&server_addr, sizeof(server_addr));
         if (sent < 0) {
             perror("sendto failed");
             close(sock);
             return 1;
         }
-        
+     
         char buffer[2048];
         sockaddr_in from_addr{};
         socklen_t from_len = sizeof(from_addr);
         int received = recvfrom(sock, buffer, sizeof(buffer) - 1, 0,
-        (sockaddr *)&from_addr, &from_len);
-        
-            if (received < 0) {
-                continue;
-            } else {
-                buffer[received] = '\0';
-                std::cout << "Port number: " << i << " " << buffer << std::endl;
-                break;
-            }
+                                (sockaddr *)&from_addr, &from_len);
+        if (received < 0) {
+            int received = recvfrom(sock, buffer, sizeof(buffer) - 1, 0,
+                                (sockaddr *)&from_addr, &from_len);
+                                if (received < 0) {
+                                    continue;
+                                }
+        } else {
+            buffer[received] = '\0';
+            std::cout << "Port number: " << i << " " << buffer << std::endl;
         }
-  
+
+        
     }
     
     close(sock);
