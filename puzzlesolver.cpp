@@ -78,6 +78,8 @@ int main(int argc, char *argv[]) {
         int numb = rec_buffer[i];
         std::cout << numb;
     }
+
+    std::cout << rec_buffer << endl;
     std::cout << '\n';
     int receivedNumber;
     int groupID = rec_buffer[0];
@@ -101,7 +103,7 @@ int main(int argc, char *argv[]) {
     }
 
     //Second reply
-    char second_reply_buffer[5];
+    char second_reply_buffer[1024];
  
     int received2 = recvfrom(sock, second_reply_buffer, sizeof(second_reply_buffer) - 1, 0,
         (sockaddr *)&from_addr, &from_len);
@@ -115,6 +117,7 @@ int main(int argc, char *argv[]) {
         std::cout << numb;
     }
     std::cout << std::endl;
+    std::cout << second_reply_buffer << endl;
     
     //std::cout <<  rec_buffer << std::endl;
                 
