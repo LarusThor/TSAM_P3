@@ -12,7 +12,12 @@ using namespace std;
 
 
 void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port2) {
-    //TODO: Figure out how to send correctly and receive messages
+
+    // TODO: Figure out how to send correctly and receive messages
+    // Add a IPv4 and UDP header and store the signature_buffer in the data section of the UDP header
+    // IPv4 (20 bytes)
+    // UDP (8 bytes)
+    // Data (4 bytes)
     server_addr.sin_port = htons(port2);
     int sent = sendto(sock, signature_buffer, sizeof(signature_buffer), 0,
         (sockaddr *)&server_addr, sizeof(server_addr));
