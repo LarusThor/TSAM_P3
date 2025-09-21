@@ -100,6 +100,19 @@ void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port
     for (int i = 0; i < received; ++i) printf("%02X ", (unsigned char)((uint8_t*)new_rec_buffer)[i]);
 }
 
+uint16_t checksumCalc(uint16_t* ipheaderBytes, int numWords){
+    uint32_t outcome = 0;
+    // If one is carried for most significant bit we wrap around
+    for (int i = 0; i < numWords; i++){
+        outcome += ipheaderBytes[i];
+        if(outcome & 0x10000){
+            outcome = (outcome & 0xFFFF) + 1;
+        }
+    } 
+    // Flip bits using tilde 
+    return static_cast<uint16_t>(~outcome & 0xFFFF);
+}
+
 void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int port3){
     
     cout << "port 3 number: " << port3 << endl;
@@ -118,22 +131,142 @@ void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int por
         return;
     }
 
-    char third_reply_buffer[1024];
+    char third_reply_buffer[470];
+    char checksumBytes[2];
+    char addressBytes[4];
     
     sockaddr_in from_addr{};
     socklen_t from_len = sizeof(from_addr);
  
     int received3 = recvfrom(sock, third_reply_buffer, sizeof(third_reply_buffer), 0,
         (sockaddr *)&from_addr, &from_len);
-   
+    cout << "Amount received for checksum first receive: " << received3 << endl;
     if (received3 < 0) {
         std::cout << "received failed" << std::endl;
     } else {
         cout << "Checksum first receive: " << third_reply_buffer << endl;
+        // Read last 6 bytes into a useful buffer since values change each run
+        memcpy(checksumBytes, third_reply_buffer + (received3 - 6), 2);
+        memcpy(addressBytes, third_reply_buffer + (received3 - 4), 4);
     }
 
-}
+    cout << "Checksum bytes in network order: " << endl;
+    for(int i = 0; i < 2; i++){
+        printf("%02X ", (unsigned char)checksumBytes[i]);
+    }
 
+    cout << "Ip Address bytes in network order: " << endl;
+    for(int i = 0; i < 4; i++){
+        printf("%02X ", (unsigned char)addressBytes[i]);
+    }
+
+    // Convert the address bytes to a string that is used as src addr in Ipv4 packet header
+    char ipString[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, addressBytes, ipString, INET_ADDRSTRLEN);
+    std::string addrString(ipString);
+
+    cout << "The address: " << addrString << endl;
+
+    char encapsulatedPacket[1024];
+    char packetHeader[32];
+
+    int pkt_len = sizeof(struct ip) + sizeof(struct udphdr) + 4;
+
+    sockaddr_in local_addr{};
+    socklen_t local_len = sizeof(local_addr);
+    if (getsockname(sock, (sockaddr*)&local_addr, &local_len) == -1) {
+    perror("getsockname failed");
+    
+    } else {
+        char local_ip_str[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &local_addr.sin_addr, local_ip_str, sizeof(local_ip_str));
+        std::cout << "local IP: " << local_ip_str
+                << "  local port: " << ntohs(local_addr.sin_port) << std::endl;
+    }
+
+
+    struct ip *ipHeader = (struct ip *) packetHeader;
+    struct udphdr *udpHeader = (struct udphdr *) (packetHeader + sizeof(struct ip));
+    char *data = packetHeader + sizeof(struct ip) + sizeof(struct udphdr);
+
+    ipHeader->ip_hl = 5;
+    ipHeader->ip_v = 4;
+    ipHeader->ip_tos = 0;
+    ipHeader->ip_len = htons(pkt_len);
+    ipHeader->ip_id = htons(0);
+    ipHeader->ip_ttl = 64;
+    ipHeader->ip_p = 17;
+    // Set after computing checksum value
+    ipHeader->ip_sum = 0;
+    ipHeader->ip_dst.s_addr = inet_addr("130.208.246.98");
+    ipHeader->ip_src.s_addr = inet_addr(ipString);
+
+    //ipHeader->ip_sum = checksumCalc((uint16_t*)ipHeader, sizeof(struct ip) / 2);
+
+    uint16_t local_port = ntohs(local_addr.sin_port);
+    udpHeader->uh_sport = htons(local_port);
+    udpHeader->uh_dport = htons(port3);
+    udpHeader->uh_ulen = htons(sizeof(struct udphdr) + 4);
+    udpHeader->uh_sum = 0;
+
+    // TODO: Compute checksum
+    // First we have to create psuedo header which we use for the checksum along with udp header and udp data
+    #pragma pack(push, 1)
+    struct psuedoHeader {
+        uint32_t src_addr;
+        uint32_t dst_addr;
+        uint8_t zeroes;
+        uint8_t protocol;
+        uint16_t udpLen;
+    };
+    #pragma pack(pop)
+
+    struct psuedoHeader psh;
+    psh.dst_addr = ipHeader->ip_dst.s_addr;
+    psh.src_addr = ipHeader->ip_src.s_addr;
+    psh.zeroes = 0;
+    psh.protocol = 17;
+    psh.udpLen = udpHeader->uh_ulen;
+
+    // Add all headers and data for checksum calculations
+    memcpy(data, signature_buffer + 1, sizeof(int));
+
+    char udpChecksumHeader[24];
+    size_t cksum_len = sizeof(psuedoHeader) + sizeof(struct udphdr) + 4;
+    char *cksum_buf = new char[cksum_len];
+
+    memcpy(cksum_buf, &psh, sizeof(psuedoHeader));
+    memcpy(cksum_buf + sizeof(psuedoHeader), udpHeader, sizeof(struct udphdr));
+    memcpy(cksum_buf + sizeof(psuedoHeader) + sizeof(struct udphdr), data, 4);
+
+    udpHeader->uh_sum = checksumCalc((uint16_t*)cksum_buf, cksum_len / 2);
+    delete[] cksum_buf;
+    //uint16_t calc = checksumCalc((uint16_t*)udpChecksumHeader, 24 / 2);
+    printf("Computed checksum: 0x%04X\n", udpHeader->uh_sum);
+
+    printf("\n the bytes: %02X \n", (unsigned short)udpHeader->uh_sum);
+
+    std::cout << "\nChecksum Packet header: " << std::endl;
+    for (int i = 0; i < sizeof(packetHeader); i++) {
+        printf("%02X ", (unsigned char)packetHeader[i]);
+    }
+    
+    //printf("\n The checksum result is: %02X\n", (unsigned char)checksumResult);
+
+    memcpy(encapsulatedPacket, packetHeader, pkt_len);
+
+    int sent2 = sendto(sock, encapsulatedPacket, pkt_len, 0,
+        (sockaddr *)&server_addr, sizeof(server_addr));
+    cout << "Checksum amount sent second time: " << sent2 << endl;
+    
+    if (sent2 < 0) {
+        perror("sendto failed");
+        close(sock);
+        return;
+    }
+
+
+}
 
 int main(int argc, char *argv[]) {
     if (argc != 6) {
