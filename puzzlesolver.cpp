@@ -16,12 +16,6 @@ using namespace std;
 
 void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port2) {
 
-    // TODO: Figure out how to send correctly and receive messages
-    // Add a IPv4 and UDP header and store the signature_buffer in the data section of the UDP header
-    // IPv4 (20 bytes)
-    // UDP (8 bytes)
-    // Data (4 bytes)
-
     std::cout << "Signature bytes: " << std::endl;
     for (int i = 0; i < 5; i++) {
         printf("%02X ", (unsigned char)signature_buffer[i]);
@@ -30,42 +24,18 @@ void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port
     int rawsock = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
     if (rawsock < 0) { 
         perror("raw socket failed"); exit(1); }
-    //setsockopt(rawsock, 3, )
-
-    // struct ip
-    // {
-    //     # if __BYTE_ORDER == __LITTLE_ENDIAN
-    //     unsigned int ip_hl :4; /* header length */
-    //     unsigned int ip_v :4; /* version */
-    //     # endif
-    //     # if __BYTE_ORDER == __BIG_ENDIAN
-    //     unsigned int ip_v :4; /* version */
-    //     unsigned int ip_hl :4; /* header length */
-    //     # endif
-    //     uint8_t ip_tos ; /* type of service */
-    //     unsigned short ip_len ; /* total length */
-    //     unsigned short ip_id ; /* identification */
-    //     unsigned short ip_off ; /* fragment offset field */
-    //     # define IP_RF 0x8000 /* reserved fragment flag */
-    //     # define IP_DF 0x4000 /* dont fragment flag */
-    //     # define IP_MF 0x2000 /* more fragments flag */
-    //     # define IP_OFFMASK 0x1fff /* mask for fragmenting bits */
-    //     uint8_t ip_ttl ; /* time to live */
-    //     uint8_t ip_p ; /* protocol */
-    //     unsigned short ip_sum ; /* checksum */
-    //     struct in_addr ip_src , ip_dst ; /* source and dest address */
-    // };
-
+    
     int one = 1;
     if (setsockopt(rawsock, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one)) < 0) {
         perror("setsockopt failed!");
     } 
 
+    // Setup local address so both raw and udp socket use same port numbers
     sockaddr_in local_addr{};
     socklen_t local_len = sizeof(local_addr);
     if (getsockname(sock, (sockaddr*)&local_addr, &local_len) == -1) {
     perror("getsockname failed");
-    // fall back or return depending on how you want to handle it
+    
     } else {
         char local_ip_str[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &local_addr.sin_addr, local_ip_str, sizeof(local_ip_str));
@@ -106,8 +76,6 @@ void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port
     for (int i = 0; i < sizeof(packetHeader); i++) {
         printf("%02X ", (unsigned char)packetHeader[i]);
     }
-    
-    
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = ipHeader->ip_dst.s_addr;
@@ -129,12 +97,40 @@ void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port
         std::cout << "received failed" << std::endl;
     }
 
-    //std::cout << "Received buffer: " << std::endl;
-    //for (int i = 0; i < sizeof(rec_buffer); i++) {
-    //    printf("%02X ", (unsigned char)rec_buffer[i]);
-    //}
-
     for (int i = 0; i < received; ++i) printf("%02X ", (unsigned char)((uint8_t*)new_rec_buffer)[i]);
+}
+
+void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int port3){
+    
+    cout << "port 3 number: " << port3 << endl;
+    uint32_t receivedNumber;
+    
+    memcpy(&receivedNumber, signature_buffer + 1, sizeof(int));
+    cout << receivedNumber << endl;
+    server_addr.sin_port = htons(port3);
+    int sent = sendto(sock, &receivedNumber, sizeof(receivedNumber), 0,
+        (sockaddr *)&server_addr, sizeof(server_addr));
+    cout << "Checksum amount sent: " << sent << endl;
+    
+    if (sent < 0) {
+        perror("sendto failed");
+        close(sock);
+        return;
+    }
+
+    char third_reply_buffer[1024];
+    
+    sockaddr_in from_addr{};
+    socklen_t from_len = sizeof(from_addr);
+ 
+    int received3 = recvfrom(sock, third_reply_buffer, sizeof(third_reply_buffer), 0,
+        (sockaddr *)&from_addr, &from_len);
+   
+    if (received3 < 0) {
+        std::cout << "received failed" << std::endl;
+    } else {
+        cout << "Checksum first receive: " << third_reply_buffer << endl;
+    }
 
 }
 
@@ -261,6 +257,8 @@ int main(int argc, char *argv[]) {
     // std::cout << std::endl;
 
     evilBit(signature_buffer, sock, server_addr, port2);
+
+    checkSum(signature_buffer, sock, server_addr, port3);
 
     return 0;
 
