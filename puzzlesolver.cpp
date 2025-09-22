@@ -222,7 +222,7 @@ void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int por
         }
     }
 
-
+    int payload_len = 4;
     struct ip *ipHeader = (struct ip *) packetHeader;
     struct udphdr *udpHeader = (struct udphdr *) (packetHeader + sizeof(struct ip));
     char *data = packetHeader + sizeof(struct ip) + sizeof(struct udphdr);
@@ -230,7 +230,7 @@ void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int por
     ipHeader->ip_hl = 5;
     ipHeader->ip_v = 4;
     ipHeader->ip_tos = 0;
-    ipHeader->ip_len = htons(pkt_len);
+    ipHeader->ip_len = htons(sizeof(struct ip) + sizeof(struct udphdr) + payload_len);
     ipHeader->ip_id = htons(0);
     ipHeader->ip_ttl = 64;
     ipHeader->ip_p = 17;
@@ -258,26 +258,36 @@ void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int por
     pseudoHeader[8] = 0;
     pseudoHeader[9] = 17;
     
-    uint16_t udpLen = htons(sizeof(struct udphdr) + 4);
+    uint16_t udpLen = htons(sizeof(struct udphdr) + payload_len);
     memcpy(pseudoHeader + 10, &udpLen, 2);
     
     // Add all headers and data for checksum calculations
-    size_t cksum_len = sizeof(pseudoHeader) + sizeof(struct udphdr) + 4;
-    std::vector<uint8_t> buf(cksum_len);
+    //size_t cksum_len = sizeof(pseudoHeader) + sizeof(struct udphdr) + 4;
+    std::vector<uint8_t> buf(sizeof(pseudoHeader) + sizeof(struct udphdr) + payload_len);
 
     memcpy(buf.data(), pseudoHeader, sizeof(pseudoHeader));
-    memcpy(buf.data() + sizeof(pseudoHeader), udpHeader, sizeof(struct udphdr));
-    memcpy(buf.data() + sizeof(pseudoHeader) + sizeof(struct udphdr), data, 4);
-    /*
-    uint32_t net_num = htonl(receivedNumber);
-    memcpy(cksum_buf, &psh, sizeof(psuedoHeader));
-    memcpy(cksum_buf + sizeof(psuedoHeader), udpHeader, sizeof(struct udphdr));
-    // Not sure if receivedNumber is in network order or not might need to htonl that (now net_num)
-    memcpy(cksum_buf + sizeof(psuedoHeader) + sizeof(struct udphdr), &net_num, 4);
-    */
+    struct udphdr udpTemp = *udpHeader;
+    udpTemp.uh_sum = 0;
+    memcpy(buf.data() + sizeof(pseudoHeader), &udpHeader, sizeof(udpTemp));
+    memcpy(buf.data() + sizeof(pseudoHeader) + sizeof(udpTemp), data, payload_len);
 
     uint16_t udp_sum = (checksumCalc(buf.data(), buf.size()));
-    udpHeader->uh_sum = udp_sum;
+    memcpy(data, signature_buffer + 1, 4);
+    udpHeader->uh_sum = htons(udp_sum);
+
+    /*
+    // Interpret two bytes from checksumBytes as a network-order 16-bit value
+    uint16_t serverChecksum;
+    memcpy(&serverChecksum, checksumBytes, sizeof(serverChecksum));
+    serverChecksum = ntohs(serverChecksum); // convert from network to host order
+    
+    // Now compare with your computed UDP checksum
+    uint16_t checksumDiff = serverChecksum - udp_sum;
+    udpHeader->uh_sum = htons(udp_sum + checksumDiff);    
+    */
+
+
+
     //uint16_t calc = checksumCalc((uint16_t*)udpChecksumHeader, 24 / 2);
     printf("Computed checksum: 0x%04X\n", udpHeader->uh_sum);
 
@@ -305,6 +315,15 @@ void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int por
         return;
     }
 
+    char fourth_reply_buffer[1024];
+    int received4 = recvfrom(sock, fourth_reply_buffer, sizeof(fourth_reply_buffer), 0,
+        (sockaddr *)&from_addr, &from_len);
+    cout << "Amount received for checksum first receive: " << received4 << endl;
+    if (received4 < 0) {
+        std::cout << "received failed" << std::endl;
+    } else {
+        cout << "Checksum second receive: " << fourth_reply_buffer << endl;
+    }
 
 }
 
