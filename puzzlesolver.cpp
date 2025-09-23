@@ -287,157 +287,15 @@ void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int por
         return;
     }
 
-    char rec_buffer[1024];
-    int received = recvfrom(sock, rec_buffer, sizeof(rec_buffer), 0,
+    char fourth_reply_buffer[1024];
+    int received4 = recvfrom(sock, fourth_reply_buffer, sizeof(fourth_reply_buffer), 0,
         (sockaddr *)&from_addr, &from_len);
-    if (received < 0) {
+    cout << "Amount received for checksum first receive: " << received4 << endl;
+    if (received4 < 0) {
         std::cout << "received failed" << std::endl;
+    } else {
+        cout << "Checksum second receive: " << fourth_reply_buffer << endl;
     }
-    cout << "RECEIVED FROM BUFFER IN CHECKSUM:" << endl;
-    cout << rec_buffer << endl;
-}
-
-
-void EXPSTN(char* signature_buffer, int sock, sockaddr_in server_addr, int port4){
-    
-    //4010,4010,4096,4010,4096,4096
-    
-    server_addr.sin_port = htons(port4);
-    connect(sock, (sockaddr*)&server_addr, sizeof(server_addr));
-    cout << "portcheck" << port4 << endl;
-    std::string secret_ports = "4010,4096";
-    char buffer[20];
-    memcpy(buffer, secret_ports.data(), secret_ports.size());
-
-    int totalLen = secret_ports.size();
-
-    int sent = sendto(sock, buffer, totalLen, 0,
-        (sockaddr *)&server_addr, sizeof(server_addr));
-    if (sent < 0) {
-        perror("sendto failed");
-        close(sock);
-        return;
-    }
-
-    cout << "Amount sent: " << sent << endl;
-
-    char rec_buffer[1024];
-    sockaddr_in from_addr{};
-    from_addr.sin_port = htons(port4);
-    socklen_t from_len = sizeof(from_addr);
-    int received = recvfrom(sock, rec_buffer, sizeof(rec_buffer), 0,
-        (sockaddr *)&from_addr, &from_len);
-    if (received < 0) {
-        std::cout << "received failed" << std::endl;
-    }
-    cout << "RECEIVED FROM BUFFER IN EXPSTN:" << endl;
-    cout << rec_buffer << endl;
-
-    //First, 4 bytes containing your S.E.C.R.E.T signature, followed by the secret phrase.
-    //4010,4010,4096,4010,4096,4096
-
-    char firstPhraseBuffer[100];
-    std:string firstPhrase = "A fool thinks themselves to be wise, but the wise know themselves to be fools.";
-    memcpy(firstPhraseBuffer, signature_buffer + 1, 4);
-    memcpy(firstPhraseBuffer + 4, firstPhrase.data(), firstPhrase.size());
-    int firstPhraseBufferLen = 4 + firstPhrase.size();
-
-    server_addr.sin_port = htons(4010);
-    int sent2 = sendto(sock, firstPhraseBuffer, firstPhraseBufferLen, 0,
-        (sockaddr *)&server_addr, sizeof(server_addr));
-    if (sent2 < 0) {
-        perror("sendto failed");
-        close(sock);
-        return;
-    }
-
-    //"OW!", the port complains when you knock on it.
-
-    //You knock on the port, a guard shows up "STOP RIGHT THERE CRIMINAL SCUM!"
-
-    //As you knock on the port, a string is sent to your socket. It's a link to somebody's soundcloud. You leave it to the stack to deal with.
-
-    /*
-    char secondPhraseBuffer[200];
-    std::string secondPhrase = "\"OW!\", the port complains when you knock on it.";
-    memcpy(secondPhraseBuffer, signature_buffer + 1, 4);
-    memcpy(secondPhraseBuffer + 4, secondPhrase.data(), secondPhrase.size());
-    int secondPhraseBufferLen = 4 + secondPhrase.size();
-
-    server_addr.sin_port = htons(4010);
-    int sent3 = sendto(sock, secondPhraseBuffer, secondPhraseBufferLen, 0,
-        (sockaddr *)&server_addr, sizeof(server_addr));
-    if (sent3 < 0) {
-        perror("sendto failed");
-        close(sock);
-        return;
-    }
-    */
-    
-
-    //As you knock on the port, a string is sent to your socket, it's a link to the latest meme at /r/tsammemes
-
-    //You hear a faint rustling behind the port!
-
-    //All that we see or seem is but a dream within a dream.
-
-    /*
-    char thirdPhraseBuffer[200];
-    std::string thirdPhrase = "As you knock on the port, a string is sent to your socket, it's a link to the latest meme at /r/tsammemes";
-    memcpy(thirdPhraseBuffer, signature_buffer + 1, 4);
-    memcpy(thirdPhraseBuffer + 4, thirdPhrase.data(), thirdPhrase.size());
-    int thirdPhraseBufferLen = 4 + thirdPhrase.size();
-
-    server_addr.sin_port = htons(4096);
-    int sent4 = sendto(sock, thirdPhraseBuffer, thirdPhraseBufferLen, 0,
-        (sockaddr *)&server_addr, sizeof(server_addr));
-    if (sent4 < 0) {
-        perror("sendto failed");
-        close(sock);
-        return;
-    }
-    */
-
-
-    /*
-    char fourthPhraseBuffer[200];
-    std::string fourthPhrase = "As you knock on the port, a string is sent to your socket. It's a link to somebody's soundcloud. You leave it to the stack to deal with.";
-    memcpy(fourthPhraseBuffer, signature_buffer + 1, 4);
-    memcpy(fourthPhraseBuffer + 4, fourthPhrase.data(), fourthPhrase.size());
-    int fourthPhraseBufferLen = 4 + fourthPhrase.size();
- 
-    server_addr.sin_port = htons(4010);
-    int sent5 = sendto(sock, fourthPhraseBuffer, fourthPhraseBufferLen, 0,
-        (sockaddr *)&server_addr, sizeof(server_addr));
-    if (sent5 < 0) {
-        perror("sendto failed");
-        close(sock);
-        return;
-    }
-    
-    */
-    
-    
-    //The port responds: "\"We've been trying to reach you concerning your vehicle's extended warranty.\", you immediately close the connection, but that doesn't mean much since this is UDP...";
-   
-
-    //The sun is a wondrous body. Like a magnificent father! If only I could be so grossly incandescent!
-
-
-    // char fifthPhraseBuffer[200];
-    // std::string fifthPhrase = "The port responds: \"We've been trying to reach you concerning your vehicle's extended warranty.\", you immediately close the connection, but that doesn't mean much since this is UDP...";
-    // memcpy(fifthPhraseBuffer, signature_buffer + 1, 4);
-    // memcpy(fifthPhraseBuffer + 4, fifthPhrase.data(), fifthPhrase.size());
-    // int fifthPhraseBufferLen = 4 + fifthPhrase.size();
-
-    // server_addr.sin_port = htons(4096);
-    // int sent6 = sendto(sock, fifthPhraseBuffer, fifthPhraseBufferLen, 0,
-    //     (sockaddr *)&server_addr, sizeof(server_addr));
-    // if (sent6 < 0) {
-    //     perror("sendto failed");
-    //     close(sock);
-    //     return;
-    // }
 
 }
 
@@ -561,7 +419,7 @@ int main(int argc, char *argv[]) {
     std::cout << "Second reply buffer: " << second_reply_buffer << std::endl;
     // std::cout << std::endl;
 
-    evilBit(signature_buffer, sock, server_addr, port2);
+    //evilBit(signature_buffer, sock, server_addr, port2);
 
     checkSum(signature_buffer, sock, server_addr, port3);
 
