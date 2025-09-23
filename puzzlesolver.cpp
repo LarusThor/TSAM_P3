@@ -100,53 +100,34 @@ void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port
 
     for (int i = 0; i < received; ++i) printf("%02X ", (unsigned char)((uint8_t*)new_rec_buffer)[i]);
 }
-/*
-uint16_t checksumCalc(uint16_t* ipheaderBytes, int numWords){
-    uint32_t outcome = 0;
-    // If one is carried for most significant bit we wrap around
-    for (int i = 0; i < numWords; i++){
-        outcome += ipheaderBytes[i];
-        if(outcome & 0x10000){
-            outcome = (outcome & 0xFFFF) + 1;
-        }
-    } 
-    // Flip bits using tilde 
-    return static_cast<uint16_t>(~outcome & 0xFFFF);
-}
-*/
 
 uint16_t checksumCalc(const void* data, size_t length) {
     const uint8_t* b = static_cast<const uint8_t*>(data);
     uint32_t sum = 0;
 
-    // sum 16-bit words (big-endian)
     while (length > 1) {
         uint16_t word = (b[0] << 8) | b[1];
         sum += word;
         b += 2;
         length -= 2;
     }
-    if (length == 1) { // odd byte: pad with zero
+    if (length == 1) { 
         uint16_t word = (b[0] << 8);
         sum += word;
     }
 
-    // fold carries
     while (sum >> 16) sum = (sum & 0xFFFF) + (sum >> 16);
 
     uint16_t res = static_cast<uint16_t>(~sum);
-    if (res == 0) res = 0xFFFF;   // UDP special-case
+    if (res == 0) res = 0xFFFF;
     return res;
 }
 
-
-
 void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int port3){
     
-    // Check if port number is valid
-    cout << "port 3 number: " << port3 << endl;
-
+    int payload_len = 4;
     uint32_t receivedNumber;
+    
     memcpy(&receivedNumber, signature_buffer + 1, sizeof(int));
     
     server_addr.sin_port = htons(port3);
@@ -200,11 +181,8 @@ void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int por
     char encapsulatedPacket[1024];
     char packetHeader[32];
 
-    // try assigning as 32 instead of sizeof ..
-    //int pkt_len = sizeof(struct ip) + sizeof(struct udphdr) + 4;
-    int pkt_len = 32;
+    int pkt_len = sizeof(struct ip) + sizeof(struct udphdr) + payload_len;
 
-    //socklen_t local_len = sizeof(local_addr);
     sockaddr_in local_addr{};
     socklen_t local_len = sizeof(local_addr);
     
@@ -213,16 +191,12 @@ void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int por
     } else {
         if (getsockname(sock, (sockaddr*)&local_addr, &local_len) == -1) {
             perror("getsockname failed");
-            
             } else {
                 char local_ip_str[INET_ADDRSTRLEN];
                 inet_ntop(AF_INET, &local_addr.sin_addr, local_ip_str, sizeof(local_ip_str));
-                std::cout << "local IP: " << local_ip_str
-                        << "  local port: " << ntohs(local_addr.sin_port) << std::endl;
         }
     }
 
-    int payload_len = 4;
     struct ip *ipHeader = (struct ip *) packetHeader;
     struct udphdr *udpHeader = (struct udphdr *) (packetHeader + sizeof(struct ip));
     char *data = packetHeader + sizeof(struct ip) + sizeof(struct udphdr);
@@ -239,19 +213,11 @@ void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int por
     ipHeader->ip_dst.s_addr = inet_addr("130.208.246.98");
     ipHeader->ip_src.s_addr = inet_addr(ipString);
 
-    ipHeader->ip_sum = checksumCalc(ipHeader, 20);
-
-    //ipHeader->ip_sum = checksumCalc((uint16_t*)ipHeader, sizeof(struct ip) / 2);
-
-    //uint16_t local_port = ntohs(local_addr.sin_port);
-    udpHeader->uh_sport = local_addr.sin_port;
+    udpHeader->uh_sport = 54321;
     udpHeader->uh_dport = htons(port3);
     udpHeader->uh_ulen = htons(sizeof(struct udphdr) + 4);
-    // Set after computing checksum
     udpHeader->uh_sum = 0;
 
-    // TODO: Compute checksum
-    // First we have to create psuedo header which we use for the checksum along with udp header and udp data
     uint8_t pseudoHeader[12];
     memcpy(pseudoHeader + 0, &ipHeader->ip_src, 4);
     memcpy(pseudoHeader + 4, &ipHeader->ip_dst, 4);
@@ -262,69 +228,62 @@ void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int por
     memcpy(pseudoHeader + 10, &udpLen, 2);
     
     // Add all headers and data for checksum calculations
-    //size_t cksum_len = sizeof(pseudoHeader) + sizeof(struct udphdr) + 4;
     std::vector<uint8_t> buf(sizeof(pseudoHeader) + sizeof(struct udphdr) + payload_len);
 
+    memcpy(data, signature_buffer + 1, 4);
     memcpy(buf.data(), pseudoHeader, sizeof(pseudoHeader));
     struct udphdr udpTemp = *udpHeader;
     udpTemp.uh_sum = 0;
-    memcpy(buf.data() + sizeof(pseudoHeader), &udpHeader, sizeof(udpTemp));
+    memcpy(buf.data() + sizeof(pseudoHeader), &udpTemp, sizeof(udpTemp));
     memcpy(buf.data() + sizeof(pseudoHeader) + sizeof(udpTemp), data, payload_len);
 
-    uint16_t udp_sum = (checksumCalc(buf.data(), buf.size()));
-    memcpy(data, signature_buffer + 1, 4);
-    udpHeader->uh_sum = htons(udp_sum);
-
-    /*
-    // Interpret two bytes from checksumBytes as a network-order 16-bit value
+    // Mimmic udp checksum to valid server requested udp checksum
     uint16_t serverChecksum;
     memcpy(&serverChecksum, checksumBytes, sizeof(serverChecksum));
-    serverChecksum = ntohs(serverChecksum); // convert from network to host order
-    
-    // Now compare with your computed UDP checksum
-    uint16_t checksumDiff = serverChecksum - udp_sum;
-    udpHeader->uh_sum = htons(udp_sum + checksumDiff);    
-    */
+    serverChecksum = ntohs(serverChecksum);
+    cout << "Server checksum should be: " << serverChecksum << endl;
 
-
-
-    //uint16_t calc = checksumCalc((uint16_t*)udpChecksumHeader, 24 / 2);
-    printf("Computed checksum: 0x%04X\n", udpHeader->uh_sum);
-
-    printf("\n the bytes: %02X \n", (unsigned short)udpHeader->uh_sum);
-
-    std::cout << "\nChecksum Packet header: " << std::endl;
-    for (int i = 0; i < sizeof(packetHeader); i++) {
-        printf("%02X ", (unsigned char)packetHeader[i]);
+    // Loop to check if updated payload changed checksum so it matches requested
+    bool found = false;
+    int brute_index = payload_len - 1;
+    for (int b = 0; b < 256 && !found; ++b) {
+        data[brute_index] = (uint8_t)b;
+        // Copy changed payload into buf
+        memcpy(buf.data() + sizeof(pseudoHeader) + sizeof(udpTemp), data, payload_len);
+        uint16_t udp_sum = checksumCalc(buf.data(), buf.size()); // host order
+        if (udp_sum == serverChecksum) {
+            cout << "There was a match" << endl;
+            udpHeader->uh_sum = htons(udp_sum);
+            found = true;
+            break;
+        }
     }
-    
-    //printf("\n The checksum result is: %02X\n", (unsigned char)checksumResult);
+
+    if (!found && payload_len >= 2) {
+    for (int b1 = 0; b1 < 256 && !found; ++b1) {
+        data[payload_len - 2] = (uint8_t)b1;
+        for (int b2 = 0; b2 < 256; ++b2) {
+            data[payload_len - 1] = (uint8_t)b2;
+            memcpy(buf.data() + sizeof(pseudoHeader) + sizeof(udpTemp), data, payload_len);
+            uint16_t udp_sum = checksumCalc(buf.data(), buf.size());
+            if (udp_sum == serverChecksum) {
+                cout << "Found in second try" << endl;
+                udpHeader->uh_sum = htons(udp_sum);
+                found = true;
+                break;
+            }
+        }
+    }
+}
 
     memcpy(encapsulatedPacket, packetHeader, pkt_len);
 
-    int sent2 = sendto(sock, encapsulatedPacket, pkt_len, 0,
-        (sockaddr *)&server_addr, sizeof(server_addr));
-    cout << "Checksum amount sent second time: " << sent2 << endl;
-    
-    cout << "Packet lenght: " << pkt_len << endl;
-    cout << "Amount sent: " << sent2 << endl;
-
+    int sent2 = send(sock, encapsulatedPacket, pkt_len, 0);
     if (sent2 < 0) {
         perror("sendto failed");
         close(sock);
         return;
     }
-
-    char fourth_reply_buffer[1024];
-    int received4 = recvfrom(sock, fourth_reply_buffer, sizeof(fourth_reply_buffer), 0,
-        (sockaddr *)&from_addr, &from_len);
-    cout << "Amount received for checksum first receive: " << received4 << endl;
-    if (received4 < 0) {
-        std::cout << "received failed" << std::endl;
-    } else {
-        cout << "Checksum second receive: " << fourth_reply_buffer << endl;
-    }
-
 }
 
 int main(int argc, char *argv[]) {
@@ -386,7 +345,6 @@ int main(int argc, char *argv[]) {
     socklen_t from_len = sizeof(from_addr);
     int received = recvfrom(sock, rec_buffer, sizeof(rec_buffer), 0,
         (sockaddr *)&from_addr, &from_len);
-    //std::cout << "Received amount for first reply: " << received << std::endl;
     if (received < 0) {
         std::cout << "received failed" << std::endl;
     }
@@ -448,7 +406,7 @@ int main(int argc, char *argv[]) {
     std::cout << "Second reply buffer: " << second_reply_buffer << std::endl;
     // std::cout << std::endl;
 
-    evilBit(signature_buffer, sock, server_addr, port2);
+    //evilBit(signature_buffer, sock, server_addr, port2);
 
     checkSum(signature_buffer, sock, server_addr, port3);
 
