@@ -7,6 +7,7 @@
 #include <cstring>
 #include <string>
 #include <unistd.h>
+#include <sstream>
 
 #include <netinet/ip.h>
 #include <netinet/udp.h>
@@ -279,6 +280,8 @@ void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int por
 }
 
     memcpy(encapsulatedPacket, packetHeader, pkt_len);
+    timeval tv{.tv_sec = 2, .tv_usec = 0};
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
     int sent2 = send(sock, encapsulatedPacket, pkt_len, 0);
     if (sent2 < 0) {
@@ -295,22 +298,19 @@ void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int por
     }
     cout << "RECEIVED FROM BUFFER IN CHECKSUM:" << endl;
     cout << rec_buffer << endl;
+    
 }
 
 
 void EXPSTN(char* signature_buffer, int sock, sockaddr_in server_addr, int port4){
     
-    //4010,4010,4096,4010,4096,4096
-    
-    server_addr.sin_port = htons(port4);
-    connect(sock, (sockaddr*)&server_addr, sizeof(server_addr));
-    cout << "portcheck" << port4 << endl;
-    std::string secret_ports = "4010,4096";
+    std::string secret_ports = "4010,4096"; //Secret ports we got from from previous puzzles
     char buffer[20];
     memcpy(buffer, secret_ports.data(), secret_ports.size());
-
     int totalLen = secret_ports.size();
+    server_addr.sin_port = htons(port4);
 
+    //Send the secret ports to port nr. 4
     int sent = sendto(sock, buffer, totalLen, 0,
         (sockaddr *)&server_addr, sizeof(server_addr));
     if (sent < 0) {
@@ -319,181 +319,89 @@ void EXPSTN(char* signature_buffer, int sock, sockaddr_in server_addr, int port4
         return;
     }
 
-    cout << "Amount sent: " << sent << endl;
-
-    char rec_buffer[1024];
+    //Receive the order of the ports as response
+    char rec_buffer[29];
     sockaddr_in from_addr{};
-    from_addr.sin_port = htons(port4);
     socklen_t from_len = sizeof(from_addr);
+    from_addr.sin_port = htons(port4);
     int received = recvfrom(sock, rec_buffer, sizeof(rec_buffer), 0,
         (sockaddr *)&from_addr, &from_len);
     if (received < 0) {
-        std::cout << "received failed" << std::endl;
+        perror("received from port4 failed: ");
     }
-    cout << "RECEIVED FROM BUFFER IN EXPSTN:" << endl;
-    cout << rec_buffer << endl;
-
-    //First, 4 bytes containing your S.E.C.R.E.T signature, followed by the secret phrase.
-    //4010,4010,4096,4010,4096,4096
-
-    char firstPhraseBuffer[100];
-    std:string firstPhrase = "A fool thinks themselves to be wise, but the wise know themselves to be fools.";
-    memcpy(firstPhraseBuffer, signature_buffer + 1, 4);
-    memcpy(firstPhraseBuffer + 4, firstPhrase.data(), firstPhrase.size());
-    int firstPhraseBufferLen = 4 + firstPhrase.size();
-
-    server_addr.sin_port = htons(4010);
-    int sent2 = sendto(sock, firstPhraseBuffer, firstPhraseBufferLen, 0,
-        (sockaddr *)&server_addr, sizeof(server_addr));
-    if (sent2 < 0) {
-        perror("sendto failed");
-        close(sock);
-        return;
-    }
-
-    //"OW!", the port complains when you knock on it.
-
-    //You knock on the port, a guard shows up "STOP RIGHT THERE CRIMINAL SCUM!"
-
-    //As you knock on the port, a string is sent to your socket. It's a link to somebody's soundcloud. You leave it to the stack to deal with.
-
-    /*
-    char secondPhraseBuffer[200];
-    std::string secondPhrase = "\"OW!\", the port complains when you knock on it.";
-    memcpy(secondPhraseBuffer, signature_buffer + 1, 4);
-    memcpy(secondPhraseBuffer + 4, secondPhrase.data(), secondPhrase.size());
-    int secondPhraseBufferLen = 4 + secondPhrase.size();
-
-    server_addr.sin_port = htons(4010);
-    int sent3 = sendto(sock, secondPhraseBuffer, secondPhraseBufferLen, 0,
-        (sockaddr *)&server_addr, sizeof(server_addr));
-    if (sent3 < 0) {
-        perror("sendto failed");
-        close(sock);
-        return;
-    }
-    */
     
-
-    //As you knock on the port, a string is sent to your socket, it's a link to the latest meme at /r/tsammemes
-
-    //You hear a faint rustling behind the port!
-
-    //All that we see or seem is but a dream within a dream.
-
-    /*
-    char thirdPhraseBuffer[200];
-    std::string thirdPhrase = "As you knock on the port, a string is sent to your socket, it's a link to the latest meme at /r/tsammemes";
-    memcpy(thirdPhraseBuffer, signature_buffer + 1, 4);
-    memcpy(thirdPhraseBuffer + 4, thirdPhrase.data(), thirdPhrase.size());
-    int thirdPhraseBufferLen = 4 + thirdPhrase.size();
-
-    server_addr.sin_port = htons(4096);
-    int sent4 = sendto(sock, thirdPhraseBuffer, thirdPhraseBufferLen, 0,
-        (sockaddr *)&server_addr, sizeof(server_addr));
-    if (sent4 < 0) {
-        perror("sendto failed");
-        close(sock);
-        return;
+    
+    //Put every port number into an array for easy access
+    std::string data(rec_buffer);
+    std::vector<int> portSequence;
+    std::stringstream ss(data);
+    std::string token;
+    while (std::getline(ss, token, ',')) {
+        portSequence.push_back(std::stoi(token));
     }
-    */
 
-
-    /*
-    char fourthPhraseBuffer[200];
-    std::string fourthPhrase = "As you knock on the port, a string is sent to your socket. It's a link to somebody's soundcloud. You leave it to the stack to deal with.";
-    memcpy(fourthPhraseBuffer, signature_buffer + 1, 4);
-    memcpy(fourthPhraseBuffer + 4, fourthPhrase.data(), fourthPhrase.size());
-    int fourthPhraseBufferLen = 4 + fourthPhrase.size();
+    //Send the signature and secret phrase to all 6 ports in right order
+    std::string replyString;
+    for (int i = 0; i < portSequence.size(); i++) {
+        std::string phrase;
+        phrase = "A fool thinks themselves to be wise, but the wise know themselves to be fools."; 
+        std::vector<char> phraseBuffer(4 + phrase.size());
+        memcpy(phraseBuffer.data(), signature_buffer + 1, 4);
+        memcpy(phraseBuffer.data() + 4, phrase.data(), phrase.size());
  
-    server_addr.sin_port = htons(4010);
-    int sent5 = sendto(sock, fourthPhraseBuffer, fourthPhraseBufferLen, 0,
-        (sockaddr *)&server_addr, sizeof(server_addr));
-    if (sent5 < 0) {
-        perror("sendto failed");
-        close(sock);
-        return;
+        server_addr.sin_port = htons(portSequence[i]);
+        int sent2 = sendto(sock, phraseBuffer.data(), (int)phraseBuffer.size(), 0,
+            (sockaddr *)&server_addr, sizeof(server_addr));
+        if (sent2 < 0) {
+            perror("sendto failed");
+            close(sock);
+            return;
+        }
+        
+        char knockRecBuffer[1024];
+        sockaddr_in raddr{}; 
+        socklen_t rlen = sizeof(raddr);
+        
+        int reply = recvfrom(sock, knockRecBuffer, sizeof(knockRecBuffer), 0,
+            (sockaddr *)&raddr, &rlen);
+        if (reply < 0) { perror("receive failed "); break;}
+        std::string replyStr(knockRecBuffer, knockRecBuffer + reply);
+        cout << "Received from port number " << portSequence[i] << ":" << endl;
+        cout << replyStr  << endl;
     }
-    
-    */
-    
-    
-    //The port responds: "\"We've been trying to reach you concerning your vehicle's extended warranty.\", you immediately close the connection, but that doesn't mean much since this is UDP...";
+
    
-
-    //The sun is a wondrous body. Like a magnificent father! If only I could be so grossly incandescent!
-
-
-    // char fifthPhraseBuffer[200];
-    // std::string fifthPhrase = "The port responds: \"We've been trying to reach you concerning your vehicle's extended warranty.\", you immediately close the connection, but that doesn't mean much since this is UDP...";
-    // memcpy(fifthPhraseBuffer, signature_buffer + 1, 4);
-    // memcpy(fifthPhraseBuffer + 4, fifthPhrase.data(), fifthPhrase.size());
-    // int fifthPhraseBufferLen = 4 + fifthPhrase.size();
-
-    // server_addr.sin_port = htons(4096);
-    // int sent6 = sendto(sock, fifthPhraseBuffer, fifthPhraseBufferLen, 0,
-    //     (sockaddr *)&server_addr, sizeof(server_addr));
-    // if (sent6 < 0) {
-    //     perror("sendto failed");
-    //     close(sock);
-    //     return;
-    // }
-
 }
 
-int main(int argc, char *argv[]) {
-    if (argc != 6) {
-        perror("Incorrect amount of arguments");
-        exit(0);
-    }
 
-    int sock; 
-    if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) {
-        perror("Socket creation failed");
-        exit(0);
-    }
-    char* ip_string = argv[1];
-    int port1 = std::stoi(argv[2]);
-    int port2 = std::stoi(argv[3]);
-    int port3 = std::stoi(argv[4]);
-    int port4 = std::stoi(argv[5]);
-
-    struct sockaddr_in server_addr;
-    server_addr.sin_family = AF_INET;
-    if (inet_pton(AF_INET, ip_string, &server_addr.sin_addr) != 1) {
-        std::cout << "IP address is weird" << std::endl;
-    } 
+void secret(int sock, sockaddr_in server_addr, int port1) {
     
     server_addr.sin_port = htons(port1);
-    std::string names = "larus23,steinars23";
-    int secretNumber = 32500;
-
+    std::string names = "larus23,steinars23"; // RU names
+    int secretNumber = 32500; // Secret number that we decided
+    
+    // Buffer with first Byte as 'S' and the rest is the secret number
     char buffer[1024];
     buffer[0] = 'S';
-
     uint32_t netSecret = htonl(secretNumber);
     memcpy(buffer + 1, &netSecret, sizeof(netSecret));
     memcpy(buffer + 1 + sizeof(netSecret), names.data(), names.size());
-
-    int totalLen = 1 + sizeof(netSecret) + names.size();
-    for (int i = 0; i < totalLen; i++) {
-        printf("%02X ", (unsigned char)buffer[i]);
-    }
-    printf("\n");
     
+    int totalLen = 1 + sizeof(netSecret) + names.size();
 
+    // Send the Buffer to server
     int sent = sendto(sock, buffer, totalLen, 0,
         (sockaddr *)&server_addr, sizeof(server_addr));
     if (sent < 0) {
         perror("sendto failed");
         close(sock);
-        return 1;
+        return;
     }
 
-    timeval tv{};
-    tv.tv_sec = 0;
-    tv.tv_usec = 100000;
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    // timeval tv{};
+    // tv.tv_sec = 0;
+    // tv.tv_usec = 100000;
+    // setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
     char rec_buffer[5];
     sockaddr_in from_addr{};
@@ -545,7 +453,7 @@ int main(int argc, char *argv[]) {
     if (sent2 < 0) {
         perror("signatureBuffer failed");
         close(sock);
-        return 1;
+        return;
     }
 
     //Second reply
@@ -561,11 +469,45 @@ int main(int argc, char *argv[]) {
     std::cout << "Second reply buffer: " << second_reply_buffer << std::endl;
     // std::cout << std::endl;
 
-    evilBit(signature_buffer, sock, server_addr, port2);
 
-    checkSum(signature_buffer, sock, server_addr, port3);
+}
+int main(int argc, char *argv[]) {
+    if (argc != 6) {
+        perror("Incorrect amount of arguments");
+        exit(0);
+    }
 
-    EXPSTN(signature_buffer, sock, server_addr, port4);
+    int sock; 
+    if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) {
+        perror("Socket creation failed");
+        exit(0);
+    }
+    
+    char* ip_string = argv[1];
+    int port1 = std::stoi(argv[2]);
+    int port2 = std::stoi(argv[3]);
+    int port3 = std::stoi(argv[4]);
+    int port4 = std::stoi(argv[5]);
+
+    struct sockaddr_in server_addr;
+    server_addr.sin_family = AF_INET;
+    if (inet_pton(AF_INET, ip_string, &server_addr.sin_addr) != 1) {
+        std::cout << "IP address is weird" << std::endl;
+    }
+
+    timeval tv{};
+    tv.tv_sec = 0;
+    tv.tv_usec = 100000;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+
+    secret(sock, server_addr, port1);
+    
+    //evilBit(signature_buffer, sock, server_addr, port2);
+
+    //checkSum(signature_buffer, sock, server_addr, port3);
+
+    //EXPSTN(signature_buffer, sock, server_addr, port4);
 
     return 0;
 
