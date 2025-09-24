@@ -1,10 +1,16 @@
-all: scanner puzzlesolver
+
+CXX = g++
+CXXFLAGS = -Wall -Wextra -std=c++17
+
+# Targets
+all: scanner puzzle
 
 scanner: scanner.cpp
-	g++-15 -std=c++11 scanner.cpp -o $@
+	$(CXX) $(CXXFLAGS) -o scanner scanner.cpp
 
-puzzlesolver: puzzlesolver.cpp
-	g++-15 -std=c++11 puzzlesolver.cpp -o $@
+puzzle: puzzlesolver.cpp
+	$(CXX) $(CXXFLAGS) -o puzzle puzzlesolver.cpp
 
 clean:
-	rm -f scanner puzzlesolver
+	rm -f scanner puzzle
+

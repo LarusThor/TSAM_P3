@@ -325,7 +325,7 @@ void EXPSTN(const char* signature_buffer, int sock, sockaddr_in server_addr, int
 
     //Send the signature and secret phrase to all 6 ports in right order
     std::string replyString;
-    for (int i = 0; i < portSequence.size(); i++) {
+    for (std::size_t i = 0; i < portSequence.size(); i++) {
         std::string phrase;
         phrase = "A fool thinks themselves to be wise, but the wise know themselves to be fools."; 
         std::vector<char> phraseBuffer(4 + phrase.size());
