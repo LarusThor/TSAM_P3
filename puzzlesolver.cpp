@@ -8,7 +8,6 @@
 #include <string>
 #include <unistd.h>
 #include <sstream>
-
 #include <netinet/ip.h>
 #include <netinet/udp.h>
 #include <vector>
@@ -42,8 +41,6 @@ void evilBit(const char* signature_buffer, int sock, sockaddr_in server_addr, in
     char packetHeader[32];
 
     int pkt_len = sizeof(struct ip) + sizeof(struct udphdr) + 4;
-
-
     struct ip *ipHeader = (struct ip *) packetHeader;
     struct udphdr *udpHeader = (struct udphdr *) (packetHeader + sizeof(struct ip));
     char *data = packetHeader + sizeof(struct ip) + sizeof(struct udphdr);
@@ -91,7 +88,7 @@ void evilBit(const char* signature_buffer, int sock, sockaddr_in server_addr, in
     for (int i = 0; i < received; ++i) {
         printf("%C", (unsigned char)((uint8_t*)new_rec_buffer)[i]);
     }
-    cout << '\n';
+    cout << "\n\n"; 
 
 
 }
@@ -118,7 +115,7 @@ uint16_t checksumCalc(const void* data, size_t length) {
     return res;
 }
 
-void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int port3){
+void checkSum(const char* signature_buffer, int sock, sockaddr_in server_addr, int port3){
     
     int payload_len = 4;
     uint32_t receivedNumber;
@@ -128,7 +125,6 @@ void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int por
     server_addr.sin_port = htons(port3);
     int sent = sendto(sock, &receivedNumber, sizeof(receivedNumber), 0,
         (sockaddr *)&server_addr, sizeof(server_addr));
-    cout << "Checksum amount sent: " << sent << endl;
     
     if (sent < 0) {
         perror("sendto failed");
@@ -143,35 +139,23 @@ void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int por
     sockaddr_in from_addr{};
     socklen_t from_len = sizeof(from_addr);
     
+    
     // Store reply in a buffer after sending signature
     int received3 = recvfrom(sock, third_reply_buffer, sizeof(third_reply_buffer), 0,
         (sockaddr *)&from_addr, &from_len);
-    cout << "Amount received for checksum first receive: " << received3 << endl;
     if (received3 < 0) {
         std::cout << "received failed" << std::endl;
     } else {
-        cout << "Checksum first receive: " << third_reply_buffer << endl;
         // Read last 6 bytes into a useful buffer since values change each run
         memcpy(checksumBytes, third_reply_buffer + (received3 - 6), 2);
         memcpy(addressBytes, third_reply_buffer + (received3 - 4), 4);
     }
 
-    cout << "Checksum bytes in network order: " << endl;
-    for(int i = 0; i < 2; i++){
-        printf("%02X ", (unsigned char)checksumBytes[i]);
-    }
-
-    cout << "Ip Address bytes in network order: " << endl;
-    for(int i = 0; i < 4; i++){
-        printf("%02X ", (unsigned char)addressBytes[i]);
-    }
 
     // Convert the address bytes to a string that is used as src addr in Ipv4 packet header
     char ipString[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, addressBytes, ipString, INET_ADDRSTRLEN);
-    std::string addrString(ipString);
-
-    cout << "The address: " << addrString << endl;
+    //std::string addrString(ipString);
 
     char encapsulatedPacket[1024];
     char packetHeader[32];
@@ -291,10 +275,17 @@ void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int por
     cout << "RECEIVED FROM BUFFER IN CHECKSUM:" << endl;
     cout << rec_buffer << endl;
     
+    
+    sockaddr_in dummy{};
+    dummy.sin_family = AF_UNSPEC;
+    connect(sock, (sockaddr*)&dummy, sizeof(dummy)); 
+    
+    std::cout << "\n\n"; 
+    
 }
 
 
-void EXPSTN(char* signature_buffer, int sock, sockaddr_in server_addr, int port4){
+void EXPSTN(const char* signature_buffer, int sock, sockaddr_in server_addr, int port4){
     
     std::string secret_ports = "4010,4096"; //Secret ports we got from from previous puzzles
     char buffer[20];
@@ -400,12 +391,6 @@ std::string secret(int sock, sockaddr_in server_addr, int port1) {
         std::cout << "received failed" << std::endl;
     }
 
-    // for (int i = 0; i < sizeof(int) + sizeof(char); i++) {
-    //     int numb = rec_buffer[i];
-    //     std::cout << numb << endl;
-    // }
-   
-    // std::cout << '\n';
     int receivedNumber;
     int groupID = rec_buffer[0];
     
@@ -417,11 +402,6 @@ std::string secret(int sock, sockaddr_in server_addr, int port1) {
     char signature_buffer[5];
     signature_buffer[0] = groupID;
     memcpy(signature_buffer + 1, &receivedNumber, sizeof(receivedNumber));
-    for (size_t i = 0; i < 5; i++)
-    {
-        std::cout << (int)signature_buffer[i];
-    }
-    std::cout << std::endl;
 
     int sent2 = sendto(sock, signature_buffer, sizeof(signature_buffer), 0,
         (sockaddr *)&server_addr, sizeof(server_addr));
@@ -442,7 +422,9 @@ std::string secret(int sock, sockaddr_in server_addr, int port1) {
     }
 
     std::cout << "Second reply buffer: " << second_reply_buffer << std::endl;
+    std::cout << "\n\n\n"; 
     return std::string(signature_buffer);
+
 
 
 }
@@ -481,10 +463,10 @@ int main(int argc, char *argv[]) {
     
     evilBit(signature_buffer.c_str(), sock, server_addr, port2);
 
-    //checkSum(signature_buffer, sock, server_addr, port3);
+    checkSum(signature_buffer.c_str(), sock, server_addr, port3);
 
-    //EXPSTN(signature_buffer, sock, server_addr, port4);
-    //delete[] signature_buffer;
+    EXPSTN(signature_buffer.c_str(), sock, server_addr, port4);
+    
 
     return 0;
 
