@@ -16,12 +16,7 @@
 
 using namespace std;
 
-void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port2) {
-
-    std::cout << "Signature bytes: " << std::endl;
-    for (int i = 0; i < 5; i++) {
-        printf("%02X ", (unsigned char)signature_buffer[i]);
-    }
+void evilBit(const char* signature_buffer, int sock, sockaddr_in server_addr, int port2) {
 
     int rawsock = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
     if (rawsock < 0) { 
@@ -41,8 +36,7 @@ void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port
     } else {
         char local_ip_str[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &local_addr.sin_addr, local_ip_str, sizeof(local_ip_str));
-        std::cout << "local IP: " << local_ip_str
-                << "  local port: " << ntohs(local_addr.sin_port) << std::endl;
+
     }
  
     char packetHeader[32];
@@ -74,11 +68,6 @@ void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port
   
     memcpy(data, signature_buffer + 1, sizeof(int));
 
-    std::cout << "\nPacket header: " << std::endl;
-    for (int i = 0; i < sizeof(packetHeader); i++) {
-        printf("%02X ", (unsigned char)packetHeader[i]);
-    }
-
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = ipHeader->ip_dst.s_addr;
     int sent = sendto(rawsock, packetHeader, pkt_len, 0,
@@ -94,14 +83,17 @@ void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port
     socklen_t from_len = sizeof(from_addr);
     int received = recvfrom(sock, new_rec_buffer, sizeof(new_rec_buffer), 0,
         (sockaddr *)&from_addr, &from_len);
-    std::cout << "\nReceived amount for first evil reply: " << received << std::endl;
     if (received < 0) {
         std::cout << "received failed evil" << std::endl;
     }
 
     cout << "Secret port message for evil port: " << endl;
-    cout << new_rec_buffer << endl;
-    for (int i = 0; i < received; ++i) printf("%02X ", (unsigned char)((uint8_t*)new_rec_buffer)[i]);
+    for (int i = 0; i < received; ++i) {
+        printf("%C", (unsigned char)((uint8_t*)new_rec_buffer)[i]);
+    }
+    cout << '\n';
+
+
 }
 
 uint16_t checksumCalc(const void* data, size_t length) {
@@ -374,7 +366,7 @@ void EXPSTN(char* signature_buffer, int sock, sockaddr_in server_addr, int port4
 }
 
 
-void secret(int sock, sockaddr_in server_addr, int port1) {
+std::string secret(int sock, sockaddr_in server_addr, int port1) {
     
     server_addr.sin_port = htons(port1);
     std::string names = "larus23,steinars23"; // RU names
@@ -395,14 +387,10 @@ void secret(int sock, sockaddr_in server_addr, int port1) {
     if (sent < 0) {
         perror("sendto failed");
         close(sock);
-        return;
+        return nullptr;
     }
 
-    // timeval tv{};
-    // tv.tv_sec = 0;
-    // tv.tv_usec = 100000;
-    // setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-
+    // Receive reply from server
     char rec_buffer[5];
     sockaddr_in from_addr{};
     socklen_t from_len = sizeof(from_addr);
@@ -412,12 +400,12 @@ void secret(int sock, sockaddr_in server_addr, int port1) {
         std::cout << "received failed" << std::endl;
     }
 
-    for (int i = 0; i < sizeof(int) + sizeof(char); i++) {
-        int numb = rec_buffer[i];
-        std::cout << numb << endl;
-    }
+    // for (int i = 0; i < sizeof(int) + sizeof(char); i++) {
+    //     int numb = rec_buffer[i];
+    //     std::cout << numb << endl;
+    // }
    
-    std::cout << '\n';
+    // std::cout << '\n';
     int receivedNumber;
     int groupID = rec_buffer[0];
     
@@ -425,16 +413,9 @@ void secret(int sock, sockaddr_in server_addr, int port1) {
     receivedNumber = ntohl(receivedNumber); 
     receivedNumber = receivedNumber ^ secretNumber;
     receivedNumber = htonl(receivedNumber);
-    // std::cout << "Group Id: " << groupID << std::endl;
-    // std::cout << "Challenger number: " << receivedNumber << std::endl;
-    // std::cout << '\n';
 
     char signature_buffer[5];
     signature_buffer[0] = groupID;
-    // std::cout << "Group ID: " << groupID << std::endl;
-    // std::cout << "Signature buffer: " << std::endl;
-
-    
     memcpy(signature_buffer + 1, &receivedNumber, sizeof(receivedNumber));
     for (size_t i = 0; i < 5; i++)
     {
@@ -442,18 +423,12 @@ void secret(int sock, sockaddr_in server_addr, int port1) {
     }
     std::cout << std::endl;
 
-    // for (int i = 0; i < 5; i++) {
-    //     printf("Last signature buffer: %02X \n", (unsigned char)signature_buffer[i]);
-    // }
-
-    //cout << "total lenght when sending 2nd time: " << totalLen << endl;
-
     int sent2 = sendto(sock, signature_buffer, sizeof(signature_buffer), 0,
         (sockaddr *)&server_addr, sizeof(server_addr));
     if (sent2 < 0) {
         perror("signatureBuffer failed");
         close(sock);
-        return;
+        return nullptr;
     }
 
     //Second reply
@@ -467,7 +442,7 @@ void secret(int sock, sockaddr_in server_addr, int port1) {
     }
 
     std::cout << "Second reply buffer: " << second_reply_buffer << std::endl;
-    // std::cout << std::endl;
+    return std::string(signature_buffer);
 
 
 }
@@ -500,14 +475,16 @@ int main(int argc, char *argv[]) {
     tv.tv_usec = 100000;
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
-
-    secret(sock, server_addr, port1);
     
-    //evilBit(signature_buffer, sock, server_addr, port2);
+
+    std::string signature_buffer = secret(sock, server_addr, port1);
+    
+    evilBit(signature_buffer.c_str(), sock, server_addr, port2);
 
     //checkSum(signature_buffer, sock, server_addr, port3);
 
     //EXPSTN(signature_buffer, sock, server_addr, port4);
+    //delete[] signature_buffer;
 
     return 0;
 
