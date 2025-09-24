@@ -30,10 +30,6 @@ void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port
     if (setsockopt(rawsock, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one)) < 0) {
         perror("setsockopt failed!");
     } 
-<<<<<<< HEAD
- 
-    char packetHeader[32];
-=======
 
     // Setup local address so both raw and udp socket use same port numbers
     sockaddr_in local_addr{};
@@ -53,7 +49,6 @@ void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port
     int pkt_len = sizeof(struct ip) + sizeof(struct udphdr) + 4;
 
 
->>>>>>> main
     struct ip *ipHeader = (struct ip *) packetHeader;
     struct udphdr *udpHeader = (struct udphdr *) (packetHeader + sizeof(struct ip));
     char *data = packetHeader + sizeof(struct ip) + sizeof(struct udphdr);
@@ -61,27 +56,13 @@ void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port
     ipHeader->ip_hl = 5;
     ipHeader->ip_v = 4;
     ipHeader->ip_tos = 0;
-<<<<<<< HEAD
-    ipHeader->ip_len = htons(32);
-=======
     ipHeader->ip_len = htons(pkt_len);
->>>>>>> main
     ipHeader->ip_id = htons(0);
     ipHeader->ip_off = htons(IP_RF);
     ipHeader->ip_ttl = 64;
     ipHeader->ip_p = 17;
     ipHeader->ip_sum = 0;
     ipHeader->ip_dst.s_addr = inet_addr("130.208.246.98");
-<<<<<<< HEAD
-    ipHeader->ip_src.s_addr = inet_addr("130.208.246.98");
-
-
-    udpHeader->uh_sport = htons(2134);
-    udpHeader->uh_dport = htons(port2);
-    udpHeader->uh_ulen = htons(sizeof(struct udphdr) + sizeof(int));
-    udpHeader->uh_sum = 0;
-    
-=======
     ipHeader->ip_src = local_addr.sin_addr;
 
     uint16_t local_port = ntohs(local_addr.sin_port);
@@ -89,7 +70,6 @@ void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port
     udpHeader->uh_dport = htons(port2);
     udpHeader->uh_ulen = htons(sizeof(struct udphdr) + sizeof(int));
     udpHeader->uh_sum = 0;
->>>>>>> main
   
     memcpy(data, signature_buffer + 1, sizeof(int));
 
@@ -97,39 +77,18 @@ void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port
     for (int i = 0; i < sizeof(packetHeader); i++) {
         printf("%02X ", (unsigned char)packetHeader[i]);
     }
-<<<<<<< HEAD
-    
-    
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr = ipHeader->ip_dst;
-    server_addr.sin_port = htons(port2);  
-    
-    int sent = sendto(rawsock, packetHeader, sizeof(packetHeader), 0,
-=======
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = ipHeader->ip_dst.s_addr;
     int sent = sendto(rawsock, packetHeader, pkt_len, 0,
->>>>>>> main
         (sockaddr *)&server_addr, sizeof(server_addr));
     if (sent < 0) {
         perror("sendto failed");
         close(rawsock);
         return;
     }
-<<<<<<< HEAD
-
-    // int evilSock; 
-    // if ((evilSock = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) {
-    //     perror("Socket creation failed");
-    //     exit(0);
-    // }
-    
-    int rec_buffer[69];
-=======
     
     int new_rec_buffer[69];
->>>>>>> main
     sockaddr_in from_addr{};
     socklen_t from_len = sizeof(from_addr);
     int received = recvfrom(sock, new_rec_buffer, sizeof(new_rec_buffer), 0,
@@ -139,18 +98,9 @@ void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port
         std::cout << "received failed evil" << std::endl;
     }
 
-<<<<<<< HEAD
-    std::cout << "Received buffer: " << std::endl;
-    std::cout << rec_buffer << std::endl;
-    for (int i = 0; i < sizeof(rec_buffer); i++) {
-        printf("%02X ", (unsigned char)rec_buffer[i]);
-    }
-
-=======
     cout << "Secret port message for evil port: " << endl;
     cout << new_rec_buffer << endl;
     for (int i = 0; i < received; ++i) printf("%02X ", (unsigned char)((uint8_t*)new_rec_buffer)[i]);
->>>>>>> main
 }
 
 uint16_t checksumCalc(const void* data, size_t length) {
@@ -550,10 +500,6 @@ int main(int argc, char *argv[]) {
     socklen_t from_len = sizeof(from_addr);
     int received = recvfrom(sock, rec_buffer, sizeof(rec_buffer), 0,
         (sockaddr *)&from_addr, &from_len);
-<<<<<<< HEAD
-    //std::cout << "Received amount for first reply: " << received << std::endl;
-=======
->>>>>>> main
     if (received < 0) {
         std::cout << "received failed" << std::endl;
     }
@@ -612,15 +558,9 @@ int main(int argc, char *argv[]) {
         std::cout << "received failed" << std::endl;
     }
 
-<<<<<<< HEAD
-    // std::cout << "Second reply buffer: " << second_reply_buffer << std::endl;
-    // std::cout << std::endl;
-    
-=======
     std::cout << "Second reply buffer: " << second_reply_buffer << std::endl;
     // std::cout << std::endl;
 
->>>>>>> main
     evilBit(signature_buffer, sock, server_addr, port2);
 
     checkSum(signature_buffer, sock, server_addr, port3);
