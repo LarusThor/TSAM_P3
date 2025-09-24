@@ -10,58 +10,50 @@
 
 #include <netinet/ip.h>
 #include <netinet/udp.h>
+#include <vector>
 
 
 using namespace std;
 
 void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port2) {
 
-    // TODO: Figure out how to send correctly and receive messages
-    // Add a IPv4 and UDP header and store the signature_buffer in the data section of the UDP header
-    // IPv4 (20 bytes)
-    // UDP (8 bytes)
-    // Data (4 bytes)
-
     std::cout << "Signature bytes: " << std::endl;
     for (int i = 0; i < 5; i++) {
         printf("%02X ", (unsigned char)signature_buffer[i]);
     }
 
-    int rawsock = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);
+    int rawsock = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
     if (rawsock < 0) { 
         perror("raw socket failed"); exit(1); }
-    //setsockopt(rawsock, 3, )
-
-    // struct ip
-    // {
-    //     # if __BYTE_ORDER == __LITTLE_ENDIAN
-    //     unsigned int ip_hl :4; /* header length */
-    //     unsigned int ip_v :4; /* version */
-    //     # endif
-    //     # if __BYTE_ORDER == __BIG_ENDIAN
-    //     unsigned int ip_v :4; /* version */
-    //     unsigned int ip_hl :4; /* header length */
-    //     # endif
-    //     uint8_t ip_tos ; /* type of service */
-    //     unsigned short ip_len ; /* total length */
-    //     unsigned short ip_id ; /* identification */
-    //     unsigned short ip_off ; /* fragment offset field */
-    //     # define IP_RF 0x8000 /* reserved fragment flag */
-    //     # define IP_DF 0x4000 /* dont fragment flag */
-    //     # define IP_MF 0x2000 /* more fragments flag */
-    //     # define IP_OFFMASK 0x1fff /* mask for fragmenting bits */
-    //     uint8_t ip_ttl ; /* time to live */
-    //     uint8_t ip_p ; /* protocol */
-    //     unsigned short ip_sum ; /* checksum */
-    //     struct in_addr ip_src , ip_dst ; /* source and dest address */
-    // };
-
+    
     int one = 1;
     if (setsockopt(rawsock, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one)) < 0) {
         perror("setsockopt failed!");
     } 
+<<<<<<< HEAD
  
     char packetHeader[32];
+=======
+
+    // Setup local address so both raw and udp socket use same port numbers
+    sockaddr_in local_addr{};
+    socklen_t local_len = sizeof(local_addr);
+    if (getsockname(sock, (sockaddr*)&local_addr, &local_len) == -1) {
+    perror("getsockname failed");
+    
+    } else {
+        char local_ip_str[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &local_addr.sin_addr, local_ip_str, sizeof(local_ip_str));
+        std::cout << "local IP: " << local_ip_str
+                << "  local port: " << ntohs(local_addr.sin_port) << std::endl;
+    }
+ 
+    char packetHeader[32];
+
+    int pkt_len = sizeof(struct ip) + sizeof(struct udphdr) + 4;
+
+
+>>>>>>> main
     struct ip *ipHeader = (struct ip *) packetHeader;
     struct udphdr *udpHeader = (struct udphdr *) (packetHeader + sizeof(struct ip));
     char *data = packetHeader + sizeof(struct ip) + sizeof(struct udphdr);
@@ -69,13 +61,18 @@ void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port
     ipHeader->ip_hl = 5;
     ipHeader->ip_v = 4;
     ipHeader->ip_tos = 0;
+<<<<<<< HEAD
     ipHeader->ip_len = htons(32);
+=======
+    ipHeader->ip_len = htons(pkt_len);
+>>>>>>> main
     ipHeader->ip_id = htons(0);
     ipHeader->ip_off = htons(IP_RF);
     ipHeader->ip_ttl = 64;
     ipHeader->ip_p = 17;
     ipHeader->ip_sum = 0;
     ipHeader->ip_dst.s_addr = inet_addr("130.208.246.98");
+<<<<<<< HEAD
     ipHeader->ip_src.s_addr = inet_addr("130.208.246.98");
 
 
@@ -84,6 +81,15 @@ void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port
     udpHeader->uh_ulen = htons(sizeof(struct udphdr) + sizeof(int));
     udpHeader->uh_sum = 0;
     
+=======
+    ipHeader->ip_src = local_addr.sin_addr;
+
+    uint16_t local_port = ntohs(local_addr.sin_port);
+    udpHeader->uh_sport = htons(local_port);
+    udpHeader->uh_dport = htons(port2);
+    udpHeader->uh_ulen = htons(sizeof(struct udphdr) + sizeof(int));
+    udpHeader->uh_sum = 0;
+>>>>>>> main
   
     memcpy(data, signature_buffer + 1, sizeof(int));
 
@@ -91,6 +97,7 @@ void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port
     for (int i = 0; i < sizeof(packetHeader); i++) {
         printf("%02X ", (unsigned char)packetHeader[i]);
     }
+<<<<<<< HEAD
     
     
     server_addr.sin_family = AF_INET;
@@ -98,12 +105,19 @@ void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port
     server_addr.sin_port = htons(port2);  
     
     int sent = sendto(rawsock, packetHeader, sizeof(packetHeader), 0,
+=======
+
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = ipHeader->ip_dst.s_addr;
+    int sent = sendto(rawsock, packetHeader, pkt_len, 0,
+>>>>>>> main
         (sockaddr *)&server_addr, sizeof(server_addr));
     if (sent < 0) {
         perror("sendto failed");
         close(rawsock);
         return;
     }
+<<<<<<< HEAD
 
     // int evilSock; 
     // if ((evilSock = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) {
@@ -112,23 +126,370 @@ void evilBit(char* signature_buffer, int sock, sockaddr_in server_addr, int port
     // }
     
     int rec_buffer[69];
+=======
+    
+    int new_rec_buffer[69];
+>>>>>>> main
     sockaddr_in from_addr{};
     socklen_t from_len = sizeof(from_addr);
-    int received = recvfrom(sock, rec_buffer, sizeof(rec_buffer), 0,
+    int received = recvfrom(sock, new_rec_buffer, sizeof(new_rec_buffer), 0,
         (sockaddr *)&from_addr, &from_len);
     std::cout << "\nReceived amount for first evil reply: " << received << std::endl;
     if (received < 0) {
         std::cout << "received failed evil" << std::endl;
     }
 
+<<<<<<< HEAD
     std::cout << "Received buffer: " << std::endl;
     std::cout << rec_buffer << std::endl;
     for (int i = 0; i < sizeof(rec_buffer); i++) {
         printf("%02X ", (unsigned char)rec_buffer[i]);
     }
 
+=======
+    cout << "Secret port message for evil port: " << endl;
+    cout << new_rec_buffer << endl;
+    for (int i = 0; i < received; ++i) printf("%02X ", (unsigned char)((uint8_t*)new_rec_buffer)[i]);
+>>>>>>> main
 }
 
+uint16_t checksumCalc(const void* data, size_t length) {
+    const uint8_t* b = static_cast<const uint8_t*>(data);
+    uint32_t sum = 0;
+
+    while (length > 1) {
+        uint16_t word = (b[0] << 8) | b[1];
+        sum += word;
+        b += 2;
+        length -= 2;
+    }
+    if (length == 1) { 
+        uint16_t word = (b[0] << 8);
+        sum += word;
+    }
+
+    while (sum >> 16) sum = (sum & 0xFFFF) + (sum >> 16);
+
+    uint16_t res = static_cast<uint16_t>(~sum);
+    if (res == 0) res = 0xFFFF;
+    return res;
+}
+
+void checkSum(char* signature_buffer, int sock, sockaddr_in server_addr, int port3){
+    
+    int payload_len = 4;
+    uint32_t receivedNumber;
+    
+    memcpy(&receivedNumber, signature_buffer + 1, sizeof(int));
+    
+    server_addr.sin_port = htons(port3);
+    int sent = sendto(sock, &receivedNumber, sizeof(receivedNumber), 0,
+        (sockaddr *)&server_addr, sizeof(server_addr));
+    cout << "Checksum amount sent: " << sent << endl;
+    
+    if (sent < 0) {
+        perror("sendto failed");
+        close(sock);
+        return;
+    }
+
+    char third_reply_buffer[470];
+    char checksumBytes[2];
+    char addressBytes[4];
+    
+    sockaddr_in from_addr{};
+    socklen_t from_len = sizeof(from_addr);
+    
+    // Store reply in a buffer after sending signature
+    int received3 = recvfrom(sock, third_reply_buffer, sizeof(third_reply_buffer), 0,
+        (sockaddr *)&from_addr, &from_len);
+    cout << "Amount received for checksum first receive: " << received3 << endl;
+    if (received3 < 0) {
+        std::cout << "received failed" << std::endl;
+    } else {
+        cout << "Checksum first receive: " << third_reply_buffer << endl;
+        // Read last 6 bytes into a useful buffer since values change each run
+        memcpy(checksumBytes, third_reply_buffer + (received3 - 6), 2);
+        memcpy(addressBytes, third_reply_buffer + (received3 - 4), 4);
+    }
+
+    cout << "Checksum bytes in network order: " << endl;
+    for(int i = 0; i < 2; i++){
+        printf("%02X ", (unsigned char)checksumBytes[i]);
+    }
+
+    cout << "Ip Address bytes in network order: " << endl;
+    for(int i = 0; i < 4; i++){
+        printf("%02X ", (unsigned char)addressBytes[i]);
+    }
+
+    // Convert the address bytes to a string that is used as src addr in Ipv4 packet header
+    char ipString[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, addressBytes, ipString, INET_ADDRSTRLEN);
+    std::string addrString(ipString);
+
+    cout << "The address: " << addrString << endl;
+
+    char encapsulatedPacket[1024];
+    char packetHeader[32];
+
+    int pkt_len = sizeof(struct ip) + sizeof(struct udphdr) + payload_len;
+
+    sockaddr_in local_addr{};
+    socklen_t local_len = sizeof(local_addr);
+    
+    if(connect(sock,(struct sockaddr*)&server_addr, sizeof(server_addr)) == -1){
+        perror("connect failed"); 
+    } else {
+        if (getsockname(sock, (sockaddr*)&local_addr, &local_len) == -1) {
+            perror("getsockname failed");
+            } else {
+                char local_ip_str[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &local_addr.sin_addr, local_ip_str, sizeof(local_ip_str));
+        }
+    }
+
+    struct ip *ipHeader = (struct ip *) packetHeader;
+    struct udphdr *udpHeader = (struct udphdr *) (packetHeader + sizeof(struct ip));
+    char *data = packetHeader + sizeof(struct ip) + sizeof(struct udphdr);
+
+    ipHeader->ip_hl = 5;
+    ipHeader->ip_v = 4;
+    ipHeader->ip_tos = 0;
+    ipHeader->ip_len = htons(sizeof(struct ip) + sizeof(struct udphdr) + payload_len);
+    ipHeader->ip_id = htons(0);
+    ipHeader->ip_ttl = 64;
+    ipHeader->ip_p = 17;
+    ipHeader->ip_off = 0;
+    ipHeader->ip_sum = 0;
+    ipHeader->ip_dst.s_addr = inet_addr("130.208.246.98");
+    ipHeader->ip_src.s_addr = inet_addr(ipString);
+
+    udpHeader->uh_sport = 54321;
+    udpHeader->uh_dport = htons(port3);
+    udpHeader->uh_ulen = htons(sizeof(struct udphdr) + 4);
+    udpHeader->uh_sum = 0;
+
+    uint8_t pseudoHeader[12];
+    memcpy(pseudoHeader + 0, &ipHeader->ip_src, 4);
+    memcpy(pseudoHeader + 4, &ipHeader->ip_dst, 4);
+    pseudoHeader[8] = 0;
+    pseudoHeader[9] = 17;
+    
+    uint16_t udpLen = htons(sizeof(struct udphdr) + payload_len);
+    memcpy(pseudoHeader + 10, &udpLen, 2);
+    
+    // Add all headers and data for checksum calculations
+    std::vector<uint8_t> buf(sizeof(pseudoHeader) + sizeof(struct udphdr) + payload_len);
+
+    memcpy(data, signature_buffer + 1, 4);
+    memcpy(buf.data(), pseudoHeader, sizeof(pseudoHeader));
+    struct udphdr udpTemp = *udpHeader;
+    udpTemp.uh_sum = 0;
+    memcpy(buf.data() + sizeof(pseudoHeader), &udpTemp, sizeof(udpTemp));
+    memcpy(buf.data() + sizeof(pseudoHeader) + sizeof(udpTemp), data, payload_len);
+
+    // Mimmic udp checksum to valid server requested udp checksum
+    uint16_t serverChecksum;
+    memcpy(&serverChecksum, checksumBytes, sizeof(serverChecksum));
+    serverChecksum = ntohs(serverChecksum);
+    cout << "Server checksum should be: " << serverChecksum << endl;
+
+    // Loop to check if updated payload changed checksum so it matches requested
+    bool found = false;
+    int brute_index = payload_len - 1;
+    for (int b = 0; b < 256 && !found; ++b) {
+        data[brute_index] = (uint8_t)b;
+        // Copy changed payload into buf
+        memcpy(buf.data() + sizeof(pseudoHeader) + sizeof(udpTemp), data, payload_len);
+        uint16_t udp_sum = checksumCalc(buf.data(), buf.size()); // host order
+        if (udp_sum == serverChecksum) {
+            cout << "There was a match" << endl;
+            udpHeader->uh_sum = htons(udp_sum);
+            found = true;
+            break;
+        }
+    }
+
+    if (!found && payload_len >= 2) {
+    for (int b1 = 0; b1 < 256 && !found; ++b1) {
+        data[payload_len - 2] = (uint8_t)b1;
+        for (int b2 = 0; b2 < 256; ++b2) {
+            data[payload_len - 1] = (uint8_t)b2;
+            memcpy(buf.data() + sizeof(pseudoHeader) + sizeof(udpTemp), data, payload_len);
+            uint16_t udp_sum = checksumCalc(buf.data(), buf.size());
+            if (udp_sum == serverChecksum) {
+                cout << "Found in second try" << endl;
+                udpHeader->uh_sum = htons(udp_sum);
+                found = true;
+                break;
+            }
+        }
+    }
+}
+
+    memcpy(encapsulatedPacket, packetHeader, pkt_len);
+
+    int sent2 = send(sock, encapsulatedPacket, pkt_len, 0);
+    if (sent2 < 0) {
+        perror("sendto failed");
+        close(sock);
+        return;
+    }
+
+    char rec_buffer[1024];
+    int received = recvfrom(sock, rec_buffer, sizeof(rec_buffer), 0,
+        (sockaddr *)&from_addr, &from_len);
+    if (received < 0) {
+        std::cout << "received failed" << std::endl;
+    }
+    cout << "RECEIVED FROM BUFFER IN CHECKSUM:" << endl;
+    cout << rec_buffer << endl;
+}
+
+
+void EXPSTN(char* signature_buffer, int sock, sockaddr_in server_addr, int port4){
+    
+    //4010,4010,4096,4010,4096,4096
+    
+    server_addr.sin_port = htons(port4);
+    connect(sock, (sockaddr*)&server_addr, sizeof(server_addr));
+    cout << "portcheck" << port4 << endl;
+    std::string secret_ports = "4010,4096";
+    char buffer[20];
+    memcpy(buffer, secret_ports.data(), secret_ports.size());
+
+    int totalLen = secret_ports.size();
+
+    int sent = sendto(sock, buffer, totalLen, 0,
+        (sockaddr *)&server_addr, sizeof(server_addr));
+    if (sent < 0) {
+        perror("sendto failed");
+        close(sock);
+        return;
+    }
+
+    cout << "Amount sent: " << sent << endl;
+
+    char rec_buffer[1024];
+    sockaddr_in from_addr{};
+    from_addr.sin_port = htons(port4);
+    socklen_t from_len = sizeof(from_addr);
+    int received = recvfrom(sock, rec_buffer, sizeof(rec_buffer), 0,
+        (sockaddr *)&from_addr, &from_len);
+    if (received < 0) {
+        std::cout << "received failed" << std::endl;
+    }
+    cout << "RECEIVED FROM BUFFER IN EXPSTN:" << endl;
+    cout << rec_buffer << endl;
+
+    //First, 4 bytes containing your S.E.C.R.E.T signature, followed by the secret phrase.
+    //4010,4010,4096,4010,4096,4096
+
+    char firstPhraseBuffer[100];
+    std:string firstPhrase = "A fool thinks themselves to be wise, but the wise know themselves to be fools.";
+    memcpy(firstPhraseBuffer, signature_buffer + 1, 4);
+    memcpy(firstPhraseBuffer + 4, firstPhrase.data(), firstPhrase.size());
+    int firstPhraseBufferLen = 4 + firstPhrase.size();
+
+    server_addr.sin_port = htons(4010);
+    int sent2 = sendto(sock, firstPhraseBuffer, firstPhraseBufferLen, 0,
+        (sockaddr *)&server_addr, sizeof(server_addr));
+    if (sent2 < 0) {
+        perror("sendto failed");
+        close(sock);
+        return;
+    }
+
+    //"OW!", the port complains when you knock on it.
+
+    //You knock on the port, a guard shows up "STOP RIGHT THERE CRIMINAL SCUM!"
+
+    //As you knock on the port, a string is sent to your socket. It's a link to somebody's soundcloud. You leave it to the stack to deal with.
+
+    /*
+    char secondPhraseBuffer[200];
+    std::string secondPhrase = "\"OW!\", the port complains when you knock on it.";
+    memcpy(secondPhraseBuffer, signature_buffer + 1, 4);
+    memcpy(secondPhraseBuffer + 4, secondPhrase.data(), secondPhrase.size());
+    int secondPhraseBufferLen = 4 + secondPhrase.size();
+
+    server_addr.sin_port = htons(4010);
+    int sent3 = sendto(sock, secondPhraseBuffer, secondPhraseBufferLen, 0,
+        (sockaddr *)&server_addr, sizeof(server_addr));
+    if (sent3 < 0) {
+        perror("sendto failed");
+        close(sock);
+        return;
+    }
+    */
+    
+
+    //As you knock on the port, a string is sent to your socket, it's a link to the latest meme at /r/tsammemes
+
+    //You hear a faint rustling behind the port!
+
+    //All that we see or seem is but a dream within a dream.
+
+    /*
+    char thirdPhraseBuffer[200];
+    std::string thirdPhrase = "As you knock on the port, a string is sent to your socket, it's a link to the latest meme at /r/tsammemes";
+    memcpy(thirdPhraseBuffer, signature_buffer + 1, 4);
+    memcpy(thirdPhraseBuffer + 4, thirdPhrase.data(), thirdPhrase.size());
+    int thirdPhraseBufferLen = 4 + thirdPhrase.size();
+
+    server_addr.sin_port = htons(4096);
+    int sent4 = sendto(sock, thirdPhraseBuffer, thirdPhraseBufferLen, 0,
+        (sockaddr *)&server_addr, sizeof(server_addr));
+    if (sent4 < 0) {
+        perror("sendto failed");
+        close(sock);
+        return;
+    }
+    */
+
+
+    /*
+    char fourthPhraseBuffer[200];
+    std::string fourthPhrase = "As you knock on the port, a string is sent to your socket. It's a link to somebody's soundcloud. You leave it to the stack to deal with.";
+    memcpy(fourthPhraseBuffer, signature_buffer + 1, 4);
+    memcpy(fourthPhraseBuffer + 4, fourthPhrase.data(), fourthPhrase.size());
+    int fourthPhraseBufferLen = 4 + fourthPhrase.size();
+ 
+    server_addr.sin_port = htons(4010);
+    int sent5 = sendto(sock, fourthPhraseBuffer, fourthPhraseBufferLen, 0,
+        (sockaddr *)&server_addr, sizeof(server_addr));
+    if (sent5 < 0) {
+        perror("sendto failed");
+        close(sock);
+        return;
+    }
+    
+    */
+    
+    
+    //The port responds: "\"We've been trying to reach you concerning your vehicle's extended warranty.\", you immediately close the connection, but that doesn't mean much since this is UDP...";
+   
+
+    //The sun is a wondrous body. Like a magnificent father! If only I could be so grossly incandescent!
+
+
+    // char fifthPhraseBuffer[200];
+    // std::string fifthPhrase = "The port responds: \"We've been trying to reach you concerning your vehicle's extended warranty.\", you immediately close the connection, but that doesn't mean much since this is UDP...";
+    // memcpy(fifthPhraseBuffer, signature_buffer + 1, 4);
+    // memcpy(fifthPhraseBuffer + 4, fifthPhrase.data(), fifthPhrase.size());
+    // int fifthPhraseBufferLen = 4 + fifthPhrase.size();
+
+    // server_addr.sin_port = htons(4096);
+    // int sent6 = sendto(sock, fifthPhraseBuffer, fifthPhraseBufferLen, 0,
+    //     (sockaddr *)&server_addr, sizeof(server_addr));
+    // if (sent6 < 0) {
+    //     perror("sendto failed");
+    //     close(sock);
+    //     return;
+    // }
+
+}
 
 int main(int argc, char *argv[]) {
     if (argc != 6) {
@@ -189,7 +550,10 @@ int main(int argc, char *argv[]) {
     socklen_t from_len = sizeof(from_addr);
     int received = recvfrom(sock, rec_buffer, sizeof(rec_buffer), 0,
         (sockaddr *)&from_addr, &from_len);
+<<<<<<< HEAD
     //std::cout << "Received amount for first reply: " << received << std::endl;
+=======
+>>>>>>> main
     if (received < 0) {
         std::cout << "received failed" << std::endl;
     }
@@ -248,10 +612,20 @@ int main(int argc, char *argv[]) {
         std::cout << "received failed" << std::endl;
     }
 
+<<<<<<< HEAD
     // std::cout << "Second reply buffer: " << second_reply_buffer << std::endl;
     // std::cout << std::endl;
     
+=======
+    std::cout << "Second reply buffer: " << second_reply_buffer << std::endl;
+    // std::cout << std::endl;
+
+>>>>>>> main
     evilBit(signature_buffer, sock, server_addr, port2);
+
+    checkSum(signature_buffer, sock, server_addr, port3);
+
+    EXPSTN(signature_buffer, sock, server_addr, port4);
 
     return 0;
 
